@@ -41,22 +41,29 @@ def test_plotwithimg():
     statfuncs = [imgutils.img_min, imgutils.img_median, imgutils.img_max, imgutils.img_std]
     df_files = imgutils.scanimgdir(TEST_DIR, '.tif')
     df = imgutils.slicestats(list(df_files['filename'][:]), 2, 2, statfuncs)
-    imgutils.plotwithimg(df, 'img_min', 'img_max', imgutils.getimgslice_fromdf, True)
+    imgutils.plotwithimg(df, 'img_min', 'img_max', imgutils.getimgslice, True)
 
 def test_getimgslice_from_slicestatdf(i):
     statfuncs = [imgutils.img_median]
     df_files = imgutils.scanimgdir(TEST_DIR, '.tif')
     df_slices = imgutils.slicestats(list(df_files['filename'][:]), 2, 2, statfuncs)
-    img = imgutils.getimgslice_fromdf(df_slices.iloc[[i]])
+    img = imgutils.getimgslice(df_slices.iloc[[i]])
+    imgutils.showimg(img)
+
+def test_highlightimgslice(i):
+    df_files = imgutils.scanimgdir(TEST_DIR, '.tif')
+    df_slices = imgutils.sliceimg_df(list(df_files['filename'][:]), 6, 6)
+    print(df_slices.head())
+    img = imgutils.highlightimgslice(df_slices.iloc[[i]])
     imgutils.showimg(img)
 
 # EXECUTE TESTS:
 #test_scanimgdir()
 #test_heatmap2()
 #test_slicestats()
-test_plotwithimg()
+#test_plotwithimg()
 #test_getimgslice_from_slicestatdf(1)
-
+test_highlightimgslice(8)
 
 
 
