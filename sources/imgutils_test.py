@@ -9,7 +9,7 @@ TEST_DIR = '' # ''../../data/Crystals_Apr_12/Tileset7'
 def test_heatmap():
     """Load image, slice it up and create a heatmap"""
     a = imgutils.loadtiff('testimage1.tif')
-    b = imgutils.sliceimg(a,4,4)
+    b = imgutils.sliceimg(a, 4, 4)
     heats = np.array([[0.1, 0.5, 0.1, 0],
                      [0.2, 0.6, 0.2, 0],
                      [0.2, 0.8, 0.4, 0.1],
@@ -19,7 +19,7 @@ def test_heatmap():
 def test_heatmap2():
     """Load image, slice it up and create a heatmap"""
     a = imgutils.loadtiff('testimage1.tif')
-    b = imgutils.sliceimg(a,4,4)
+    b = imgutils.sliceimg(a, 4, 4)
     heats = np.zeros(shape=(4,4))
     for sy in range(4):
         for sx in range(4):
@@ -64,7 +64,7 @@ def test_highlightimgslice(i):
 #test_plotwithimg()
 #test_getimgslice_from_slicestatdf(1)
 test_highlightimgslice(8)
-
+print("test")
 
 
 
