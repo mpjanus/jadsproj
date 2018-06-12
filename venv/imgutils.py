@@ -115,6 +115,9 @@ def sliceimg(img, ny, nx):
             imgs[iy, ix] = slice
     return imgs
 
+def sliceimg_df(imgnames, ny, nx):
+    """ creates datframe with image slices; actually alias for slicestats without stat functions """
+    return slicestats(imgnames, ny, nx)
 
 def slicestats(imgnames, ny, nx, stats=None):
     """
@@ -246,7 +249,7 @@ def getslicedimg(img, sy, sx, ny, nx):
 
 
 
-def getimgslice_fromdf(dfrow):
+def getimgslice(dfrow):
     """
     returns an image slice as described in a dataframe row
     that has the format of the slicestats function
@@ -261,17 +264,43 @@ def getimgslice_fromdf(dfrow):
     ny = dfrow.iloc[0]['n_y']
     return getslicedimg(fullimg, sy, sx, ny, nx)
 
-def highlightimgslice(dfrow):
+
+def highlightimgslice(dfrow, unhighlightfactor=0.6):
     """
-    returns an image slice as described in a dataframe row
-    that has the format of the slicestats function
+    returns the image in the dfrow with the slice shown highlighted
+    dfrow -> dataframe with the format of the slicestats function
+    unhighlightfactor -> the scaler for the unhighlighted area
+    linewidth -> width of border around highlighted slice
     """
     if (dfrow.empty):
         raise ValueError('dataframe is empty.')
+
+    # get img and slice specs
     img_filename = dfrow.iloc[0]['filename']
-    fullimg = loadtiff(img_filename)
+    img = loadtiff(img_filename)
+    h, w = img.shape
     sx = dfrow.iloc[0]['s_x']
     sy = dfrow.iloc[0]['s_y']
     nx = dfrow.iloc[0]['n_x']
     ny = dfrow.iloc[0]['n_y']
-    return getimgslice(fullimg, sy, sx, ny, nx)
+    sh = h // ny
+    sw = w // nx
+    sx_start = sx * sw
+    sy_start = sy * sh
+    sx_end = sx_start + sw
+    sy_end = sy_start + sh
+
+    # create a copy, but with lower intensities; then set the slice to original values
+    himg = img * unhighlightfactor
+    himg[sy_start:sy_end, sx_start:sx_end] = img[sy_start:sy_end, sx_start:sx_end]
+
+    # draw marking line around slice
+    dark = 0
+
+    lw = max(1, (int)(0.003*w), (int)(0.003*h))
+    himg[sy_start:sy_start+lw, sx_start:sx_end] = dark
+    himg[sy_end-lw:sy_end, sx_start:sx_end] = dark
+    himg[sy_start:sy_end, sx_start:sx_start+lw] = dark
+    himg[sy_start:sy_end, sx_end-lw:sx_end] = dark
+
+    return himg
