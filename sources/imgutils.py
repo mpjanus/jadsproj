@@ -4,13 +4,17 @@ import skimage.io
 from skimage.color import rgb2gray
 import matplotlib.pyplot as plt
 import matplotlib.gridspec as gridspec
-import matplotlib.image as mpimg
+#import matplotlib.image as mpimg
 from matplotlib.colors import ListedColormap
 import pathlib as path
 
 import warnings
 warnings.filterwarnings(action='once')
 
+
+# ----------------------------------------------------------------------------------
+# Image IO :
+# ----------------------------------------------------------------------------------
 
 def loadtiff(filename):
     """loads a tiff file"""
@@ -37,6 +41,9 @@ def scanimgdir(folder, ext):
     return df
 
 
+# ----------------------------------------------------------------------------------
+# Image Display :
+# ----------------------------------------------------------------------------------
 
 def showimg(img):
     """shows the image.  Note that in pycharm, run environment needs to have Display=True """
@@ -98,6 +105,9 @@ def showheatmap(imgs, heats, cmapname='summer', opacity=0.9):
     plt.show()
 
 
+# ----------------------------------------------------------------------------------
+# Image Slicing And Statistics:
+# ----------------------------------------------------------------------------------
 
 def sliceimg(img, ny, nx):
     """
@@ -115,9 +125,18 @@ def sliceimg(img, ny, nx):
             imgs[iy, ix] = slice
     return imgs
 
+
+def getslicedimg(img, sy, sx, ny, nx):
+    """ get the slice at index sy, sx when divided into ny, nx slices """
+    h, w = img.shape
+    sh = h // ny
+    sw = w // nx
+    return img[sy * sh:sy * sh + sh, sx * sw: sx * sw + sw]
+
 def sliceimg_df(imgnames, ny, nx):
-    """ creates datframe with image slices; actually alias for slicestats without stat functions """
+    """ creates dataframe with image slices; actually alias for slicestats without stat functions """
     return slicestats(imgnames, ny, nx)
+
 
 def slicestats(imgnames, ny, nx, stats=None):
     """
@@ -166,11 +185,15 @@ def slicestats(imgnames, ny, nx, stats=None):
     df = df.reindex(df_def.columns, axis='columns')
     return df
 
+
 def img_mean(img):
     return np.mean(img)
 
 def img_max(img):
     return np.max(img)
+
+def img_range(img):
+    return np.max(img) - np.min(img)
 
 def img_min(img):
     return np.min(img)
@@ -185,8 +208,28 @@ def img_std(img):
     return np.std(img)
 
 
+def norm_standardize(df, columnname):
+    """ Returns a dataframe column using standard normalization, i.e. |x| = (x - mean) / std_dev  """
+    return (df[columnname] - df[columnname].mean()) / df[columnname].std()
 
-def plotwithimg(dfimgs, x_field, y_field, imgloadfunc, interactive=True):
+def norm_minmax(df, columnname):
+    """ Returns a dataframe column using standard normalization, i.e. |x| = (x - mean) / std_dev  """
+    return (df[columnname] - df[columnname].min() ) / (df[columnname].max() - df[columnname].min())
+
+
+def normalize(df, list_of_columnnames, normfunc = norm_standardize, columnname_pre = '|', columname_post = '|' ):
+    """n Adds a normalized version of the df columns"""
+    for columnname in list_of_columnnames:
+        norm_columnname = columnname_pre + columnname + columname_post
+        df[norm_columnname] = normfunc(df, columnname)
+
+
+
+# ----------------------------------------------------------------------------------
+# Interactive Plots:
+# ----------------------------------------------------------------------------------
+
+def plotwithimg(df, x_field, y_field, imgloadfunc, interactive=True):
     """
     Show an interactive scatter plot, showing corresponding image as
      provided by the imgloadfunc when data is selected.
@@ -207,13 +250,16 @@ def plotwithimg(dfimgs, x_field, y_field, imgloadfunc, interactive=True):
     fig = plt.figure(1, figsize=(8,6))
     gs = gridspec.GridSpec(4, 5)
     graph = fig.add_subplot(gs[0:4,0:3])   
-    graph.plot(dfimgs[x_field],dfimgs[y_field], linestyle='none', marker='o', picker=tolerance)
+    graph.plot(df[x_field],df[y_field], linestyle='none', marker='o', picker=tolerance)
+    graph.set_xlabel(x_field)
+    graph.set_ylabel(y_field)
+    graph.set_title(y_field + ' vs ' + x_field)
     imginset = fig.add_subplot(gs[0:2,3:5])
     imginset.axes.get_xaxis().set_ticks([])
     imginset.axes.get_yaxis().set_ticks([])
  
     text = graph.text(1, 1, '[ .. ]', ha='right', va='top', transform=graph.transAxes)
-    cursor = graph.scatter([dfimgs[x_field][0]], [dfimgs[y_field][0]],s=130, color='green', alpha=0.7)  
+    cursor = graph.scatter([df[x_field][0]], [df[y_field][0]],s=130, color='green', alpha=0.7)
 
     # event handler for interactivity
     def on_pick(event):
@@ -230,7 +276,7 @@ def plotwithimg(dfimgs, x_field, y_field, imgloadfunc, interactive=True):
         cursor.set_offsets((x[ix], y[ix]))
 
         # showing the corresponding image in the inset
-        im = imgloadfunc(dfimgs.iloc[[ix]])
+        im = imgloadfunc(df, ix)
         imginset.imshow(im, cmap='gray')
 
     if interactive:
@@ -239,23 +285,15 @@ def plotwithimg(dfimgs, x_field, y_field, imgloadfunc, interactive=True):
     plt.show()
 
 
-
-def getslicedimg(img, sy, sx, ny, nx):
-    """ get the slice at index sy, sx when divided into ny, nx slices """
-    h, w = img.shape
-    sh = h // ny
-    sw = w // nx
-    return img[sy * sh:sy * sh + sh, sx * sw: sx * sw + sw]
-
-
-
-def getimgslice(dfrow):
+def getimgslice(df, rowindex):
     """
-    returns an image slice as described in a dataframe row
+    returns an image slice (as an image) as described in a dataframe row
     that has the format of the slicestats function
     """
-    if (dfrow.empty):
+    if (df.empty):
         raise ValueError('dataframe is empty.')
+    dfrow = df.iloc[[rowindex]]
+
     img_filename = dfrow.iloc[0]['filename']
     fullimg = loadtiff(img_filename)
     sx = dfrow.iloc[0]['s_x']
@@ -265,15 +303,17 @@ def getimgslice(dfrow):
     return getslicedimg(fullimg, sy, sx, ny, nx)
 
 
-def highlightimgslice(dfrow, unhighlightfactor=0.6):
+def highlightimgslice(df, rowindex, unhighlightfactor=0.6):
     """
-    returns the image in the dfrow with the slice shown highlighted
-    dfrow -> dataframe with the format of the slicestats function
+    returns the image in the df at specified row with the slice shown highlighted
+    df-> dataframe with the format of the slicestats function
+    rowindex -> row in the dataframe for which image should be retrieved
     unhighlightfactor -> the scaler for the unhighlighted area
     linewidth -> width of border around highlighted slice
     """
-    if (dfrow.empty):
+    if (df.empty):
         raise ValueError('dataframe is empty.')
+    dfrow = df.iloc[[rowindex]]
 
     # get img and slice specs
     img_filename = dfrow.iloc[0]['filename']
