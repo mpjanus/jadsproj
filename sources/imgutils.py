@@ -69,7 +69,7 @@ def showimgs(imgs):
     plt.show()
 
 
-def showheatmap(imgs, heats, cmapname='summer', opacity=0.9):
+def showheatmap(imgs, heats, cmapname='summer', opacity=0.7):
     """
     shows a 2d array of images with a heatmap overlay.
     imgs - 2d array of images
@@ -207,6 +207,14 @@ def img_var(img):
 def img_std(img):
     return np.std(img)
 
+def stat_names(statfunclist):
+    """ Helper to return a list of names of the statistics functions in statfunclist."""
+    return [f.__name__ for f in statfunclist]
+
+def normalized_names(listofnames, pre = '|', post = '|' ):
+    """ Helper to return a list of names formatted as the normalized version."""
+    return [(pre + n + post) for n in listofnames]
+
 
 def norm_standardize(df, columnname):
     """ Returns a dataframe column using standard normalization, i.e. |x| = (x - mean) / std_dev  """
@@ -224,6 +232,21 @@ def normalize(df, list_of_columnnames, normfunc = norm_standardize, columnname_p
         df[norm_columnname] = normfunc(df, columnname)
 
 
+def getimgslices_fromdf(df, imgfilename, stat_field_name = None):
+    """ Get all slices for specific image from the dataframe and return as 2d array of images."""
+    df_img = df.loc[df['filename'] == imgfilename]
+    fullimg = loadtiff(imgfilename)
+    ny = df_img.iloc[0]['n_y']
+    nx = df_img.iloc[0]['n_x']
+    imgs = np.empty((ny, nx), dtype=object)
+    stats = np.empty((ny,nx), dtype=float)
+    for index, row in df_img.iterrows():
+        sy = row['s_y']
+        sx = row['s_x']
+        imgs[sy,sx] =  getslicedimg(fullimg, sy, sx, ny, nx)
+        if (stat_field_name != None):
+            stats[sy,sx] = row[stat_field_name]
+    return imgs, stats
 
 # ----------------------------------------------------------------------------------
 # Interactive Plots:
@@ -301,7 +324,6 @@ def getimgslice(df, rowindex):
     nx = dfrow.iloc[0]['n_x']
     ny = dfrow.iloc[0]['n_y']
     return getslicedimg(fullimg, sy, sx, ny, nx)
-
 
 def highlightimgslice(df, rowindex, unhighlightfactor=0.6):
     """
