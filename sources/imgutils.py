@@ -69,7 +69,7 @@ def showimgs(imgs):
     plt.show()
 
 
-def showheatmap(imgs, heats, cmapname='summer', opacity=0.7):
+def showheatmap(imgs, heats, cmapname='summer', opacity=0.7, heatdepend_opacity = True):
     """
     shows a 2d array of images with a heatmap overlay.
     imgs - 2d array of images
@@ -93,10 +93,11 @@ def showheatmap(imgs, heats, cmapname='summer', opacity=0.7):
             plt.imshow(img, cmap='gray')
             overlay = np.full(img.shape, heats[iy,ix])
 
-            # color map that is more transparent for low values
+            # color map that - if enabled - is more transparent for low values
             org_cmap = plt.get_cmap(cmapname)
-            alpha_cmap = org_cmap(np.arange(org_cmap.N))
-            alpha_cmap[:, -1] = np.linspace(0, 1, org_cmap.N)
+            alpha_cmap = org_cmap(np.arange(org_cmap.N))                    
+            if (heatdepend_opacity):                
+                alpha_cmap[:, -1] = np.linspace(0, 1, org_cmap.N)
             alpha_cmap = ListedColormap(alpha_cmap)
 
             plt.imshow(overlay, cmap=alpha_cmap, alpha=opacity, vmin=0, vmax=1)
@@ -186,26 +187,7 @@ def slicestats(imgnames, ny, nx, stats=None):
     return df
 
 
-def img_mean(img):
-    return np.mean(img)
 
-def img_max(img):
-    return np.max(img)
-
-def img_range(img):
-    return np.max(img) - np.min(img)
-
-def img_min(img):
-    return np.min(img)
-
-def img_median(img):
-    return np.median(img)
-
-def img_var(img):
-    return np.var(img)
-
-def img_std(img):
-    return np.std(img)
 
 def stat_names(statfunclist):
     """ Helper to return a list of names of the statistics functions in statfunclist."""
@@ -358,11 +340,170 @@ def highlightimgslice(df, rowindex, unhighlightfactor=0.6):
 
     # draw marking line around slice
     dark = 0
-
-    lw = max(1, (int)(0.003*w), (int)(0.003*h))
-    himg[sy_start:sy_start+lw, sx_start:sx_end] = dark
-    himg[sy_end-lw:sy_end, sx_start:sx_end] = dark
-    himg[sy_start:sy_end, sx_start:sx_start+lw] = dark
-    himg[sy_start:sy_end, sx_end-lw:sx_end] = dark
+    light = np.max(img)
+    lw = max(1, (int)(0.003*w), (int)(0.003*h))    
+    himg[sy_start:sy_start+lw, sx_start:sx_end] = light
+    himg[sy_end-lw:sy_end, sx_start:sx_end] = light
+    himg[sy_start:sy_end, sx_start:sx_start+lw] = light
+    himg[sy_start:sy_end, sx_end-lw:sx_end] = light
+    himg[sy_start+lw:sy_start+lw+1, sx_start+lw:sx_end-lw] = dark  
+    himg[sy_end-lw-1:sy_end-lw, sx_start+lw:sx_end-lw] = dark
+    himg[sy_start+lw:sy_end-lw, sx_start+lw:sx_start+lw+1] = dark
+    himg[sy_start+lw:sy_end-lw, sx_end-lw-1:sx_end-lw] = dark
 
     return himg
+
+
+
+# ----------------------------------------------------------------------------------
+# Image Statistical functions:
+# ----------------------------------------------------------------------------------
+
+# Common Statistics:
+# -------------------------
+
+def img_mean(img):
+    """Return the mean pixel intensity of the image."""
+    return np.mean(img)
+
+def img_max(img):
+    """Return the maximum pixel intensity of the image."""
+    return np.max(img)
+
+def img_min(img):
+    """Return the minimum pixel intensity of the image."""
+    return np.min(img)
+
+def img_range(img):
+    """Return the range of pixel intensities of the image.], i.e. max -  min"""
+    return np.max(img) - np.min(img)
+
+def img_refinterval(img, range=0.95):
+    """Returns the inteval of pixel intensities in the image that fall within
+    the specified range (i.e. dropping the outliers outside."""
+    if (range==1):
+        return np.max(img) - np.min(img)
+    tail = (1-range)/2
+    return np.percentile(img, range+tail) - np.percentile(img, tail)
+
+def img_refinterval_low(img, range=0.95):
+    """Returns the 'distance' between the blacktail cut-point and mean of pixel intensities in the image that fall within
+    in the image. This is an indication of assymetry when compared to high part."""
+    tail = (1-range)/2
+    return np.mean(img) - np.percentile(img, tail)
+
+def img_refinterval_high(img, range=0.95):
+    """Returns the 'distance' between the whitetail cut-point and mean of pixel intensities in the image that fall within
+    in the image. This is an indication of assymetry when compared to high part."""
+    tail = (1-range)/2
+    return np.percentile(img, range+tail) - np.mean(img)
+
+
+def img_blacktail(img, tail=0.025):
+    """Returns the 'black tail' of the pixel intensities, which is the lower part
+     of the histogram that is typically considered as outliers or noise."""
+    return np.percentile(img, tail)
+
+def img_whitetail(img, tail=0.025):
+    """Returns the 'white tail' of the pixel intensities, which is the upper part
+     of the histogram that is typically considered as outliers or noise."""
+    return np.percentile(img, (1-tail))
+
+
+def img_median(img):
+    """Return the median of the pixel intensities of the image."""
+    return np.median(img)
+
+def img_var(img):
+    """Return the variance (=std^2) of the pixel intensities of the image."""
+    return np.var(img)
+
+def img_std(img):
+    """Return the standard deviation (=sqrt(variance)) of the pixel intensities of the image."""
+    return np.std(img)
+
+
+# Quantile Statistics:
+# -------------------------
+# see http://influentialpoints.com/Training/quantiles_as_summary_statistics-principles-properties-assumptions.htm
+
+def img_quartile1(img):
+    """Return the first quartile of the pixel intensities of the image. """
+    return np.percentile(img, 25)
+
+def img_quartile2(img):
+    """Return the second quartile of the pixel intensities of the image; this is the median. """
+    return np.percentile(img, 50)
+
+def img_quartile3(img):
+    """Return the third quartile of the pixel intensities of the image. """
+    return np.percentile(img, 75)
+
+def img_interquartilerange(img):
+    """Returns the 'distance' between the third and first quantile of the pixel intensities of the image."""
+    return np.percentile(img, 75) - np.percentile(img,25)
+
+def img_interquartilerange_low(img):
+    """Returns the 'distance' between the first quantile and median of the pixel intensities of the image."""
+    return np.median(img) - np.percentile(img,25)
+
+def img_interquartilerange_high(img):
+    """Returns the 'distance' between the third quantile and median of the pixel intensities of the image."""
+    return np.percentile(img, 75) - np.median(img)
+
+def img_percentile(img, percentage):
+    """Returns the percentile of the pixel intensities of the image. You can feed this
+    to the stats fucntions """
+    return np.percentile(img, percentage)
+
+def img_quintile1(img):
+    """Return the first  quintile of the pixel intensities of the image. """
+    return np.percentile(img, 20)
+def img_quintile2(img):
+    """Return the second  quintile of the pixel intensities of the image. """
+    return np.percentile(img, 40)
+def img_quintile3(img):
+    """Return the third  quintile of the pixel intensities of the image. """
+    return np.percentile(img, 60)
+def img_quintile4(img):
+    """Return the fourth quintile of the pixel intensities of the image. """
+    return np.percentile(img, 80)
+
+
+# Common combinations of statistical functions:
+# ---------------------------------------------
+
+def statfuncs_common():
+    """Returns the most common image statistical functions, which is a 4 number summary
+     of min, max, mean and standard deviation."""
+    return [img_min, img_max, img_mean, img_std, img_median]
+
+def statfuncs_common_ext():
+    """Returns an extended version of the most common image statistical functions, which
+     also includes the min and max of after outliers has been taken out ('white and black tail')"""
+    return [img_min, img_max, img_mean, img_std, img_median, img_range, img_blacktail, img_whitetail, img_refinterval]
+
+def statfuncs_selection1():
+    """A selection of statistics that seem to describe well"""
+    return [img_blacktail, img_mean, img_whitetail, img_std, img_quartile1, img_quartile3, img_median, img_interquartilerange]
+
+def statfuncs_5numsummary():
+    """Returns the 5 statistical functions known as the '5 number summary', i.e.
+    the minimum, first quartile, median, third quartile and mzximum."""
+    return [img_min, img_quartile1, img_median, img_quartile3, img_max]
+
+def statfuncs_7numsummary():
+    """Returns the 7 numbers that describes the histogram, i.e. the min, max, median
+     and the quintiles."""
+    return [img_min, img_quintile1, img_quintile2, img_mean, img_quintile3, img_quintile4, img_max]
+
+def statfuncs_boxandwhisker():
+    """Returns the 'box-and-whisker' statistical functions often used for box plots, which
+    is a 3 number summary of  the median, inter-quartile range and the reference interval."""
+    return [img_median, img_interquartilerange, img_refinterval]
+
+def statfuncs_boxandwhisker_ext():
+    """Returns extended version of the 'box-and-whisker' statistical functions, including the
+    ranges upper and lower parts."""
+    return [img_median, img_interquartilerange, img_refinterval, img_interquartilerange_low, img_interquartilerange_high, img_refinterval_low, img_refinterval_high]
+
