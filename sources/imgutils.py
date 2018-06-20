@@ -243,7 +243,7 @@ def plotwithimg(df, x_field, y_field, imgloadfunc, interactive=True):
     y_field -> name of column with y data
     imgloadfunc -> a function which will get the df row and should return
                    the corresponding image
-    Remark: 
+    Remark:
     for the interactive graph to work in jupyter, include %matplotlib notebook. You
     may need to restart the kernel before it works
     """
@@ -264,18 +264,20 @@ def plotwithimg(df, x_field, y_field, imgloadfunc, interactive=True):
     imginset.axes.get_yaxis().set_ticks([])
  
     text = graph.text(1, 1, '[ .. ]', ha='right', va='top', transform=graph.transAxes)
-    cursor = graph.scatter([df[x_field][0]], [df[y_field][0]],s=130, color='green', alpha=0.7)
+    cursor = graph.scatter([df[x_field][0]], [df[y_field][0]],s=130, color='red', alpha=0.7)
+
+    # state to keep
+    ix = 0  # selected index
+    selline = graph.lines[0]   # selected plot
+    npoints = len(selline.get_xdata())
 
     # event handler for interactivity
-    def on_pick(event):
-        artist = event.artist   # note: an 'artist' is an object in a pyplot    
-        x, y = artist.get_xdata(), artist.get_ydata()
-        ind = event.ind
-        ix = ind[0]  
-        
+    def show_selected_point():
+        x, y = selline.get_xdata(), selline.get_ydata()
+
         # textual indication of datapoint:
         tx = '[{0:5d}: ({1:8.2f}, {2:8.2f})]'.format(ix, x[ix], y[ix])
-        text.set_text(tx)       
+        text.set_text(tx)
 
         # highlighting the datapoint:
         cursor.set_offsets((x[ix], y[ix]))
@@ -283,9 +285,39 @@ def plotwithimg(df, x_field, y_field, imgloadfunc, interactive=True):
         # showing the corresponding image in the inset
         im = imgloadfunc(df, ix)
         imginset.imshow(im, cmap='gray')
+        fig.canvas.draw()
+
+    def on_pick(event):
+        artist = event.artist   # note: an 'artist' is an object in a pyplot
+        if (isinstance(artist, plt.Line2D)):
+            nonlocal selline, ix    # closures!
+
+            selline = artist
+            ind = event.ind
+            ix = ind[0]
+            show_selected_point()
+
+    def on_key(event):
+        nonlocal ix
+        # most keys are already caught in interactive mode, so used the ones that are not
+        if (event.key == 'down'):
+            ix = max(ix - 1,0)
+            show_selected_point()
+        if (event.key == 'up'):
+            ix = min(ix + 1, npoints-1)
+            show_selected_point()
+
+    def on_click(event):
+        # not used yet, but maybe hook up image click func
+        # if (event.dblclick and (event.inaxes == imginset)):
+        #    fig.canvas.draw()
+        return
 
     if interactive:
         fig.canvas.callbacks.connect('pick_event', on_pick)
+        fig.canvas.callbacks.connect('key_press_event', on_key)
+        fig.canvas.callbacks.connect('button_press_event', on_click)
+
 
     plt.show()
 
@@ -418,6 +450,11 @@ def img_var(img):
     """Return the variance (=std^2) of the pixel intensities of the image."""
     return np.var(img)
 
+def img_relstd(img):
+    """Return the variance (=std^2) of the pixel intensities of the image."""
+    return np.std(img) / (np.mean(img) + 0.001)  # +0.001 to avoid div by 0
+
+
 def img_std(img):
     """Return the standard deviation (=sqrt(variance)) of the pixel intensities of the image."""
     return np.std(img)
@@ -481,7 +518,7 @@ def statfuncs_common():
 def statfuncs_common_ext():
     """Returns an extended version of the most common image statistical functions, which
      also includes the min and max of after outliers has been taken out ('white and black tail')"""
-    return [img_min, img_max, img_mean, img_std, img_median, img_range, img_blacktail, img_whitetail, img_refinterval]
+    return [img_min, img_max, img_mean, img_std, img_median, img_range, img_var, img_relstd, img_blacktail, img_whitetail, img_refinterval]
 
 def statfuncs_selection1():
     """A selection of statistics that seem to describe well"""
@@ -495,7 +532,7 @@ def statfuncs_5numsummary():
 def statfuncs_7numsummary():
     """Returns the 7 numbers that describes the histogram, i.e. the min, max, median
      and the quintiles."""
-    return [img_min, img_quintile1, img_quintile2, img_mean, img_quintile3, img_quintile4, img_max]
+    return [img_min, img_quintile1, img_quintile2, img_median, img_quintile3, img_quintile4, img_max]
 
 def statfuncs_boxandwhisker():
     """Returns the 'box-and-whisker' statistical functions often used for box plots, which
