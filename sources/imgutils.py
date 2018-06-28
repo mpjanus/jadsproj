@@ -391,8 +391,28 @@ def highlightimgslice(df, rowindex, unhighlightfactor=0.6):
 # Image Statistical functions:
 # ----------------------------------------------------------------------------------
 
-# Common Statistics:
+# Histogram operations
 # -------------------------
+def img_histogram(img, bins=1024, normalize=False, ref_interval_only=False, ref_range=0.95):
+    if not ref_interval_only:
+        return np.histogram(img, bins)[0]
+    tail = (1 - ref_range) / 2
+    low = img_blacktail(img, tail)
+    high = img_whitetail(img, tail)
+    return np.histogram(img, bins, range=(low, high), density=normalize)[0]
+
+
+def smooth_histogram(hist, window=5):
+    sigma = window
+    gaussian_func = lambda x, sigma: 1/np.sqrt(2*np.pi*sigma**2) * np.exp(-(x**2)/(2*sigma**2))
+    gau_x = np.linspace(-2.7*sigma, 2.7*sigma, 6*sigma)
+    gau_mask = gaussian_func(gau_x, sigma)
+    return np.convolve(hist, gau_mask, 'same')
+
+
+# Common Statistics
+# -------------------------
+
 
 def img_mean(img):
     """Return the mean pixel intensity of the image."""
@@ -416,30 +436,30 @@ def img_refinterval(img, range=0.95):
     if (range==1):
         return np.max(img) - np.min(img)
     tail = (1-range)/2
-    return np.percentile(img, range+tail) - np.percentile(img, tail)
+    return np.percentile(img, 100*(range+tail)) - np.percentile(img, 100*tail)
 
 def img_refinterval_low(img, range=0.95):
     """Returns the 'distance' between the blacktail cut-point and mean of pixel intensities in the image that fall within
     in the image. This is an indication of assymetry when compared to high part."""
     tail = (1-range)/2
-    return np.mean(img) - np.percentile(img, tail)
+    return np.mean(img) - np.percentile(img, 100*tail)
 
 def img_refinterval_high(img, range=0.95):
     """Returns the 'distance' between the whitetail cut-point and mean of pixel intensities in the image that fall within
     in the image. This is an indication of assymetry when compared to high part."""
     tail = (1-range)/2
-    return np.percentile(img, range+tail) - np.mean(img)
+    return np.percentile(img, 100*(range+tail)) - np.mean(img)
 
 
 def img_blacktail(img, tail=0.025):
     """Returns the 'black tail' of the pixel intensities, which is the lower part
      of the histogram that is typically considered as outliers or noise."""
-    return np.percentile(img, tail)
+    return np.percentile(img, 100*tail)
 
 def img_whitetail(img, tail=0.025):
     """Returns the 'white tail' of the pixel intensities, which is the upper part
      of the histogram that is typically considered as outliers or noise."""
-    return np.percentile(img, (1-tail))
+    return np.percentile(img, 100*(1-tail))
 
 
 def img_median(img):
@@ -505,6 +525,24 @@ def img_quintile3(img):
 def img_quintile4(img):
     """Return the fourth quintile of the pixel intensities of the image. """
     return np.percentile(img, 80)
+
+def img_shapevalue(img, bins = 100, smoothing_window = 5, dynamic_range_only=True):
+    """Return the mvalue which is an indication for number of modes in the histogram
+    (not very well known, see http://www.brendangregg.com/FrequencyTrails/modes.html)
+    Note tat this only works well on smoothed histograms as it is derivative based
+    """
+    hist_org = img_histogram(img, bins, ref_interval_only=dynamic_range_only, ref_range=0.99)
+    hist = smooth_histogram(hist_org, smoothing_window)
+    
+    sum = 0
+    prevcount = hist[0]
+    for index, count in np.ndenumerate(hist):
+        if (index == 0): continue
+        sum = sum + np.abs(count - prevcount)
+        prevcount = count
+    mvalue = sum / max(np.max(hist),1)  # avoid division by 0
+    return mvalue
+
 
 
 # Common combinations of statistical functions:
