@@ -1,5 +1,6 @@
 import numpy as np
 import pandas as pd
+import scipy.stats as spstats
 import skimage.io
 from skimage.color import rgb2gray
 import matplotlib.pyplot as plt
@@ -264,7 +265,7 @@ def plotwithimg(df, x_field, y_field, imgloadfunc, interactive=True):
     imginset.axes.get_yaxis().set_ticks([])
  
     text = graph.text(1, 1, '[ .. ]', ha='right', va='top', transform=graph.transAxes)
-    cursor = graph.scatter([df[x_field][0]], [df[y_field][0]],s=130, color='red', alpha=0.7)
+    cursor = graph.scatter([df[x_field].iloc[0]], [df[y_field].iloc[0]],s=130, color='red', alpha=0.7)
 
     # state to keep
     ix = 0  # selected index
@@ -393,14 +394,36 @@ def highlightimgslice(df, rowindex, unhighlightfactor=0.6):
 
 # Histogram operations
 # -------------------------
-def img_histogram(img, bins=1024, normalize=False, ref_interval_only=False, ref_range=0.95):
-    if not ref_interval_only:
-        return np.histogram(img, bins)[0]
-    tail = (1 - ref_range) / 2
-    low = img_blacktail(img, tail)
-    high = img_whitetail(img, tail)
-    return np.histogram(img, bins, range=(low, high), density=normalize)[0]
+def img_histogram(img, bins=1024, normalize=False, ref_interval_only=False, ref_range=0.95, bincenters=False):
+    """Returns the histogram of the image, which is two arrays, one with the counts and one
+     with the bin centers or edges"""
+    if ref_interval_only:
+        tail = (1 - ref_range) / 2
+        low = img_blacktail(img, tail)
+        high = img_whitetail(img, tail)
+        hist = np.histogram(img, bins, range=(low, high), density=normalize)
+    else:
+        hist= np.histogram(img, bins, density=False)
+    histcnts = hist[0]
+    histbins = hist[1]
+    if (normalize):
+        histcnts = norm_histcounts(hist[0])
+    if (bincenters):
+        prev = 0
+        newbins = histbins.copy()
+        for i in range(0,len(histbins)):
+            newbins[i] = 0.5 * (prev + histbins[i])
+            prev = histbins[i]
+        histbins = newbins
+    return (histcnts, histbins)
 
+
+    return hist
+
+
+def norm_histcounts(histarray):
+    sum = max(1, np.sum(histarray)) # avoid div by 0
+    return histarray/sum
 
 def smooth_histogram(hist, window=5):
     sigma = window
@@ -526,13 +549,47 @@ def img_quintile4(img):
     """Return the fourth quintile of the pixel intensities of the image. """
     return np.percentile(img, 80)
 
+def img_mode(img, use_fast=True):
+    if (use_fast):
+        return img_histmode(img,1024)[0]
+    else:
+        return spstats.mode(img, axis=None)[0][0]
+
+def img_mode_cnt(img, use_fast=True):
+    if (use_fast):
+        return img_histmode(img,1024)[1]
+    else:
+        return spstats.mode(img, axis=None)[1][0]
+
+
+def img_histmode(img, bins=1024):
+    """Return the mode of the grayscales in the image plus the counts, based
+    on the histogram, an approximation for the most common value in the image.
+    (the full version mode via scipy stats is slow)"""
+    hist = img_histogram(img, bins=bins, bincenters=True)
+    imax = np.argmax(hist[0])   # biggest count
+    cntmax = hist[0][imax]
+    valmax = hist[1][imax]
+    return (valmax, cntmax)
+
+def img_kurtosis(img):
+    """Return the kurtosis (Fisher definition) of the image, a measure of tail
+     heaviness of the histogram in comparison to a normal distribution."""
+    return spstats.kurtosis(img, axis=None)
+
+def img_skewness(img):
+    """Returns the skeweness (Fisher defintion) of the distribution, a measure
+    for the symmetry of the histogram in comparison to a normal distribution."""
+    return spstats.skew(img, axis=None)
+
+
 def img_shapevalue(img, bins = 100, smoothing_window = 5, dynamic_range_only=True):
     """Return the mvalue which is an indication for number of modes in the histogram
     (not very well known, see http://www.brendangregg.com/FrequencyTrails/modes.html)
     Note tat this only works well on smoothed histograms as it is derivative based
     """
     hist_org = img_histogram(img, bins, ref_interval_only=dynamic_range_only, ref_range=0.99)
-    hist = smooth_histogram(hist_org, smoothing_window)
+    hist = smooth_histogram(hist_org[0], smoothing_window)
     
     sum = 0
     prevcount = hist[0]
