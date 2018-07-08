@@ -87,7 +87,7 @@ def test_highlightimgslice(i):
 #test_scanimgdir()
 #test_heatmap2()
 #test_slicestats()
-#test_plotwithimg()
+test_plotwithimg()
 #test_highlightimgslice(8)
 
 
