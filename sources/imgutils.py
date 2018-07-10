@@ -1,16 +1,23 @@
 import numpy as np
 import pandas as pd
 import scipy.stats as spstats
+
 import skimage.io
 from skimage.color import rgb2gray
+from skimage.transform import resize
+
 import matplotlib.pyplot as plt
 import matplotlib.gridspec as gridspec
+import matplotlib.collections as pltcol
 #import matplotlib.image as mpimg
 from matplotlib.colors import ListedColormap
+from matplotlib.offsetbox import (OffsetImage, AnnotationBbox, TextArea)
+
 import pathlib as path
 
 import warnings
-warnings.filterwarnings(action='once')
+warnings.filterwarnings('ignore')
+
 
 
 # ----------------------------------------------------------------------------------
@@ -235,7 +242,8 @@ def getimgslices_fromdf(df, imgfilename, stat_field_name = None):
 # Interactive Plots:
 # ----------------------------------------------------------------------------------
 
-def plotwithimg(df, x_field, y_field, imgloadfunc, interactive=True):
+def plotwithimg(df, x_field, y_field, imgloadfunc, cat_field = None,
+                thumbnails=False,  thumbnails_size=(24,24), interactive=True, fig_size=(10,6)):
     """
     Show an interactive scatter plot, showing corresponding image as
      provided by the imgloadfunc when data is selected.
@@ -244,6 +252,9 @@ def plotwithimg(df, x_field, y_field, imgloadfunc, interactive=True):
     y_field -> name of column with y data
     imgloadfunc -> a function which will get the df row and should return
                    the corresponding image
+    cat_field -> optional name of column with category/label (if applicable)
+    thumbnails -> if true, small image thumbnails are plotted as data points
+    thumbnails_size -> the size of the thumbnail images (if enable)
     Remark:
     for the interactive graph to work in jupyter, include %matplotlib notebook. You
     may need to restart the kernel before it works
@@ -252,48 +263,90 @@ def plotwithimg(df, x_field, y_field, imgloadfunc, interactive=True):
     if not interactive:
         plt.interactive(False)
 
-    tolerance = 10 # points
-    fig = plt.figure(1, figsize=(8,6))
-    gs = gridspec.GridSpec(4, 5)
-    graph = fig.add_subplot(gs[0:4,0:3])   
-    graph.plot(df[x_field],df[y_field], linestyle='none', marker='o', picker=tolerance)
+    # overall settings:
+    tolerance = 10 # points  (sensitivity for selection)
+
+    # figure layout-out:
+    fig = plt.figure(1, figsize=fig_size)
+    if (interactive):
+        gs = gridspec.GridSpec(4, 5)
+        graph = fig.add_subplot(gs[0:4, 0:3])
+        imginset = fig.add_subplot(gs[0:2,3:5])
+    else:
+        graph = fig.add_subplot(111)
+
+    # define colors if data points are labelled
+    colors = 'blue'
+    if (cat_field != None):
+        colors = pd.DataFrame(df[cat_field].astype('category'))[cat_field].cat.codes
+
+    # actual plot
+    plotdata = None  # for scatter, use get_offsets to access data
+    plotdata = graph.scatter(df[x_field],df[y_field], c=colors, marker='o', picker=tolerance)
+    # note: for scatter, use get_offsets to access the data points
+    thumbs = []
+
+    # set axis labels and titles
     graph.set_xlabel(x_field)
     graph.set_ylabel(y_field)
     graph.set_title(y_field + ' vs ' + x_field)
-    imginset = fig.add_subplot(gs[0:2,3:5])
-    imginset.axes.get_xaxis().set_ticks([])
-    imginset.axes.get_yaxis().set_ticks([])
- 
-    text = graph.text(1, 1, '[ .. ]', ha='right', va='top', transform=graph.transAxes)
-    cursor = graph.scatter([df[x_field].iloc[0]], [df[y_field].iloc[0]],s=130, color='red', alpha=0.7)
+    if (interactive):
+        imginset = fig.add_subplot(gs[0:2,3:5])
+        imginset.axes.get_xaxis().set_ticks([])
+        imginset.axes.get_yaxis().set_ticks([])
+        # cursor of selected point
+        text = graph.text(1, 1, '[ .. ]', ha='right', va='top', transform=graph.transAxes)
+        cursor = graph.scatter([df[x_field].iloc[0]], [df[y_field].iloc[0]],s=130, color='red', alpha=0.7, zorder=5)
 
-    # state to keep
+
+    # add thumbnails if enabled:
+    if (thumbnails):
+        points = plotdata.get_offsets()
+        for i in range(len(points)):
+            img = getimgslice(df, i)
+            thumbnail = resize(img, thumbnails_size)
+            imagebox = OffsetImage(thumbnail, cmap=plt.cm.gray_r)
+            imagebox.image.axes = graph
+            frmcolor = 'blue' if (cat_field==None) else plotdata.to_rgba(colors[i])
+            ab = AnnotationBbox(imagebox, (points[i,0], points[i,1]), bboxprops=dict(edgecolor=frmcolor))
+            graph.add_artist(ab)
+            thumbs.append(ab)   # keep easy reference to annotations
+
+    # some state to keep for event handlers
     ix = 0  # selected index
-    selline = graph.lines[0]   # selected plot
-    npoints = len(selline.get_xdata())
+    prev_ix = 0  # to restore previous selections
+    npoints = len(plotdata.get_offsets())
 
-    # event handler for interactivity
+    # method used by event handlers for highlighting selected point:
     def show_selected_point():
-        x, y = selline.get_xdata(), selline.get_ydata()
+        nonlocal plotdata, ix, prev_ix
 
-        # textual indication of datapoint:
-        tx = '[{0:5d}: ({1:8.2f}, {2:8.2f})]'.format(ix, x[ix], y[ix])
+        xy = plotdata.get_offsets()
+        x = xy[ix,0]
+        y = xy[ix,1]
+
+        # textual indication and move cursor to datapoint:
+        tx = '[{0:5d}: ({1:8.2f}, {2:8.2f})]'.format(ix, x, y)
         text.set_text(tx)
+        cursor.set_offsets((x, y))  # highlighting the datapoint:
 
-        # highlighting the datapoint:
-        cursor.set_offsets((x[ix], y[ix]))
+        # bring thumbnail to forground
+        if (thumbnails):
+            thumbs[prev_ix].set_zorder(3)   # default
+            thumbs[ix].set_zorder(4)
+            prev_ix = ix    # remember point for next time
 
         # showing the corresponding image in the inset
         im = imgloadfunc(df, ix)
         imginset.imshow(im, cmap='gray')
         fig.canvas.draw()
 
+    # event handlers for interactivity
     def on_pick(event):
         artist = event.artist   # note: an 'artist' is an object in a pyplot
-        if (isinstance(artist, plt.Line2D)):
-            nonlocal selline, ix    # closures!
-
-            selline = artist
+        if (isinstance(artist, pltcol.PathCollection)):
+            nonlocal plotdata, ix    # closures!
+            plotdata = artist
             ind = event.ind
             ix = ind[0]
             show_selected_point()
@@ -314,14 +367,18 @@ def plotwithimg(df, x_field, y_field, imgloadfunc, interactive=True):
         #    fig.canvas.draw()
         return
 
+    # attach event handlers if interactivity is on
     if interactive:
         fig.canvas.callbacks.connect('pick_event', on_pick)
         fig.canvas.callbacks.connect('key_press_event', on_key)
         fig.canvas.callbacks.connect('button_press_event', on_click)
 
-
+    # finally, show the figure
     plt.show()
 
+
+def dfcat_to_colormap(df, col_with_cat):
+    return pd.DataFrame(df[col_with_cat].astype('category'))[col_with_cat].cat.codes
 
 def getimgslice(df, rowindex):
     """
