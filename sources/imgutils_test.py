@@ -70,11 +70,11 @@ def test_slicestats():
     print(df_slices.head(8))
     return df_slices
 
-def test_plotwithimg():
+def test_plotwithimg(thumbs = False, interactive=True):
     statfuncs = [imgutils.img_min, imgutils.img_max, imgutils.img_mean, imgutils.img_std]
     df_files = imgutils.scanimgdir(TEST_DIR, '.tif')
     df = imgutils.slicestats(list(df_files['filename'][:]), 4, 4, statfuncs)
-    imgutils.plotwithimg(df, 'img_min', 'img_max', imgutils.getimgslice, True)
+    imgutils.plotwithimg(df, 'img_min', 'img_max', imgutils.getimgslice, interactive=interactive, thumbnails=thumbs)
 
 def test_highlightimgslice(i):
     df_files = imgutils.scanimgdir(TEST_DIR, '.tif')
@@ -87,7 +87,11 @@ def test_highlightimgslice(i):
 #test_scanimgdir()
 #test_heatmap2()
 #test_slicestats()
-test_plotwithimg()
+
+#test_plotwithimg(thumbs=True, interactive=False)
+#test_plotwithimg(thumbs=False, interactive=True)
+#test_plotwithimg(thumbs=True, interactive=True)
+
 #test_highlightimgslice(8)
 
 
