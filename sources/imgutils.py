@@ -77,7 +77,7 @@ def showimgs(imgs):
     plt.show()
 
 
-def showheatmap(imgs, heats, cmapname='summer', opacity=0.7, heatdepend_opacity = True):
+def showheatmap(imgs, heats, cmapname='summer', opacity=0.7, heatdepend_opacity = True, title=None, figsize=(8,6)):
     """
     shows a 2d array of images with a heatmap overlay.
     imgs - 2d array of images
@@ -88,15 +88,16 @@ def showheatmap(imgs, heats, cmapname='summer', opacity=0.7, heatdepend_opacity 
     plt.interactive(False)      # required in pycharm
 
     ny, nx = imgs.shape
-    fig = plt.figure()
+    fig = plt.figure(figsize = figsize)
+    if (title != None): fig.suptitle(title)    
 
     i = 1
     for iy in range(ny):
         for ix in range(nx):
-            subfig = fig.add_subplot(ny, nx,i)
+            subfig = fig.add_subplot(ny, nx,i)            
             subfig.axes.get_xaxis().set_ticks([])
-            subfig.axes.get_yaxis().set_ticks([])
-
+            subfig.axes.get_yaxis().set_ticks([])            
+                
             img = imgs[iy, ix]
             plt.imshow(img, cmap='gray')
             overlay = np.full(img.shape, heats[iy,ix])
