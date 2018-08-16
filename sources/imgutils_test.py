@@ -46,7 +46,14 @@ def test_heatmap2():
     for sy in range(4):
         for sx in range(4):
             heats[sy,sx] = 1 - (np.median(b[sy,sx]) / np.max(b[sy,sx]))
-    imgutils.showheatmap(b, heats)
+    imgutils.showheatmap(b, heats, tile_labels=True)
+
+def test_largeheatmap():
+    df_files = imgutils.scanimgdir(TEST_DIR, '.tif')
+    n_files = len(df_files)
+    df_imgstats = imgutils.slicestats(list(df_files['filename'][:]), 4, 4, [imgutils.img_std])
+    # using mean as heat
+    imgutils.show_large_heatmap(df_imgstats,'img_std', df_files['filename'], 1, n_files, annotate_tiles=True, show_extra_info=True)
 
 def test_statfuncs(img):
     print('min: ', imgutils.img_min(img))
@@ -93,6 +100,8 @@ def test_highlightimgslice(i):
 #test_plotwithimg(thumbs=True, interactive=True)
 
 #test_highlightimgslice(8)
+
+#test_largeheatmap()
 
 
 

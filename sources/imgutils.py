@@ -60,11 +60,11 @@ def showimg(img):
     plt.show()
 
 
-def showimgs(imgs):
-    """shows a 2d array of images. """
+def showimgs(imgs, tile_labels = False, fig_size=(8,8)):
+    """shows a 2d array of images, optionally with tile annotation """
     plt.interactive(False)      # required in pycharm
 
-    fig = plt.figure()
+    fig = plt.figure(figsize = fig_size)
     ny, nx = imgs.shape
     i = 1
     for iy in range(ny):
@@ -73,17 +73,29 @@ def showimgs(imgs):
             subfig.axes.get_xaxis().set_ticks([])
             subfig.axes.get_yaxis().set_ticks([])
             plt.imshow(imgs[iy, ix], cmap='gray')
+
+            if (tile_labels):
+                # plot text in black and white with offset to give shadow for improved readability
+                subfig.text(2, 2, "({},{})".format(iy, ix), ha="left", va="top", color="k")
+                subfig.text(1,1, "({},{})".format(iy,ix),  ha="left", va="top", color="w")
+
             i = i + 1
     plt.show()
 
 
-def showheatmap(imgs, heats, cmapname='summer', opacity=0.7, heatdepend_opacity = True, title=None, figsize=(8,6)):
+def showheatmap(imgs, heats, cmapname='summer', opacity=0.7, heatdepend_opacity = True,
+                title=None, figsize=(8,6), tile_labels=False, tile_annotations = None):
     """
     shows a 2d array of images with a heatmap overlay.
     imgs - 2d array of images
     heats - 2d array of heats [0-1]
     cmapname - see https://matplotlib.org/examples/color/colormaps_reference.html
     opacity - opacity of the heat overlay
+    heatdependend_opacity - if enabled, scales the opacity with the heats
+    title - Caption that is shown above the heatmap
+    figsize - the figure size of the entire heatmap (which is a matplotlib figure)
+    tile_labels - when enabled, plots the tile index at each image tile
+    tile_annotations - a 2d array of strings to plot on each tile
     """
     plt.interactive(False)      # required in pycharm
 
@@ -111,9 +123,94 @@ def showheatmap(imgs, heats, cmapname='summer', opacity=0.7, heatdepend_opacity 
 
             plt.imshow(overlay, cmap=alpha_cmap, alpha=opacity, vmin=0, vmax=1)
 
+            if (tile_labels):
+                # plot text in black and white with offset to give shadow for improved readability
+                subfig.text(2, 2, "({},{})".format(iy, ix), ha="left", va="top", color="k")
+                subfig.text(1,1, "({},{})".format(iy,ix),  ha="left", va="top", color="w")
+
+            if not tile_annotations is None:
+                b = img.shape[0]
+                r = img.shape[1]
+                subfig.text(b-1, r-1, tile_annotations[iy,ix], ha="right", va="bottom", color="k")
+                subfig.text(b-2, r-2, tile_annotations[iy,ix],  ha="right", va="bottom", color="w")
+
             i = i + 1
     plt.show()
 
+
+
+def show_large_heatmap(df_imgstats, heatcolname, imgnames, n_rows, n_cols,
+                       opacity=0.5, cmapname='RdYlGn', heatdependent_opacity=False, fig_size=(12,10),
+                       annotate_tiles = False, show_extra_info=False, return_heatmap=False):
+    """
+    Shows the heatmap of multiple images that originate from tiled image set; see also showheatmaps. Note
+    that the defaults for the visualization are different from showheatmap.
+
+    df_imgstats - dataframe following the imgstats convention (see slicestats)
+    heatcolname - the column name in the dataframe containing the heat values
+    imgnames - the names of the source images to include (should form a tiled image set)
+    n_rows - the number of rows in the tiled set
+    n_cols - the number of columns in the tiled set
+    cmapname - see https://matplotlib.org/examples/color/colormaps_reference.html
+    opacity - opacity of the heat overlay
+    heatdependend_opacity - if enabled, scales the opacity with the heats
+    annotate_tiles - if enabled, the tile alias is plotted in each tile
+    show_extra_info - if enabled, extra info is printed
+    return_heatmap - if enabled, the entire heatmap is returned as (all-sub-imgs,all-heats)
+    """
+    assert len(imgnames) == n_rows * n_cols
+
+    # use first image to get the number of subimages per image
+    df_img1 = df_imgstats.loc[df_imgstats['filename'] == imgnames[0]]
+    n_y = df_img1.iloc[0]['n_y']
+    n_x = df_img1.iloc[0]['n_x']
+
+    # grab all subimgs and heats into one large 2d array
+    i = 0
+    allsubimgs = np.empty((n_rows * n_y, n_cols * n_x), dtype=object)
+    allheats = np.empty((n_rows * n_y, n_cols * n_x), dtype=float)
+
+    allannos = None
+    if annotate_tiles:
+        allannos = np.empty((n_rows * n_y, n_cols * n_x), dtype=object)
+
+    for row in range(0, n_rows):
+        for col in range(0, n_cols):
+            imgname = imgnames[i]
+            subimgs, heats = getimgslices_fromdf(df_imgstats, imgname, heatcolname)
+            for sub_row in range(0, n_y):
+                for sub_col in range(0, n_x):
+                    all_row = row * n_y + sub_row
+                    all_col = col * n_x + sub_col
+                    allsubimgs[all_row, all_col] = subimgs[sub_row, sub_col]
+                    allheats[all_row, all_col] = heats[sub_row, sub_col]
+
+                    if annotate_tiles:
+                        allannos[all_row, all_col] = get_imgslice_alias(df_imgstats, imgname, sub_row, sub_col)
+
+            i = i + 1
+
+    # rescale all heats to normalized range
+    allheats = (allheats - np.min(allheats)) / (np.max(allheats) - np.min(allheats))
+    tittxt = 'Heats from: ' + heatcolname
+    showheatmap(allsubimgs, allheats, heatdepend_opacity=heatdependent_opacity, opacity=opacity, cmapname=cmapname,
+                title=tittxt, figsize=fig_size, tile_annotations=allannos)
+
+    # show info if requested
+    if show_extra_info:
+        print('-'*10)
+        print('Heat Array:')
+        print(allheats)
+        print('-' * 10)
+        i = 0;
+        print('Source Images:')
+        for row in range(0, n_rows):
+            for col in range(0, n_cols):
+                print("image %d at (%d , %d): %s" % (i, row, col, imgnames[i]))
+                i += 1
+
+    if return_heatmap:
+        return (allsubimgs, allheats)
 
 # ----------------------------------------------------------------------------------
 # Image Slicing And Statistics:
@@ -238,6 +335,13 @@ def getimgslices_fromdf(df, imgfilename, stat_field_name = None):
         if (stat_field_name != None):
             stats[sy,sx] = row[stat_field_name]
     return imgs, stats
+
+def get_imgslice_alias(df_imgstats, imgfilename, row, col):
+    """Returns the imgslice alias in the dataframe for the given image and row,col """
+    df_img = df_imgstats.loc[df_imgstats['filename'] == imgfilename]
+    df_slice = df_img[(df_img['s_x']==col) & (df_img['s_y']==row)]
+    return df_slice['alias'].values[0]
+
 
 # ----------------------------------------------------------------------------------
 # Interactive Plots:
