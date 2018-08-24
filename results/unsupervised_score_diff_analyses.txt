@@ -1,0 +1,78 @@
+==================================
+Unsuperised Scoring Differences...
+==================================
+original data: 24-aug-2018
+last update: 24-aug-2018
+
+Introduction:
+-------------
+When using the sklearn pipeline, the silhouette scores deviated a lot from the step-by-step approach. It was unclear if I made programming error, if the sklearn pipeline behaves differently, or if it has to do with the sklearn StandardScaler vs my own normalization method. Hence, I tried out all kinds of variations to find out what is going on.
+
+
+Starting point:
+---------------
+Output from sklearn Pipeline:
+K-means PCA:  0.3732994909365581		
+Hier. PCA:  0.7100243618056425	
+
+Output from step-by-step (unsupervised1 notebook):
+K-means PCA: 0.518080
+Hier.l PCA: 0.554319
+
+So, where does this differnence come from?
+
+
+Trying out variants:
+--------------------
+K-means 1: 0.3732994909365581		pipeline
+K-means 2: 0.5251916981567151		step-by-step  <--- WHAT IS GOING ON HERE?
+K-means 3: 0.3732994909365581		alt pipeline
+K-means 4: 0.3732994909365581		step-by-step StandardScaler
+K-means 5: 0.3732994909365581		pipeline custom scaler
+
+K-means PCA 1: 0.3732994909365581	pipeline
+K-means PCA 2: 0.5272951661092291	step-by-step	<--- WHAT IS GOING ON HERE?
+K-means PCA 3: 0.3834680571101721	alt pipeline
+K-means PCA 4: 0.3732994909365581	step-by-step StandardScaler
+K-means PCA 5: 0.3834680571101721	pipeline custom scaler
+
+Hier. 1: 0.7100243618056425		pipeline 
+Hier. 2: 0.5543189694833234		step-by-step	 <--- WHAT IS GOING ON HERE?
+Hier. 3: 0.7100243618056425		alt pipeline
+Hier. 4: 0.7100243618056425		step-by-step StandardScaler
+Hier. 5: 0.7100243618056425		pipeline custom scaler
+
+Hier. PCA 1: 0.7100243618056425		pipeline 
+Hier. PCA 2: 0.5543189694833234		step-by-step	<--- WHAT IS GOING ON HERE?
+Hier. PCA 3: 0.7100243618056425		alt pipeline
+Hier. PCA 4: 0.7100243618056425		step-by-step StandardScaler
+Hier. PCA 5: 0.7100243618056425		pipeline custom scaler
+
+Observations:
+- pipeline with custom scaling gives same result as pipeline with StandardScaler
+- it does not matter how we compose the pipeline
+-> It's not the StandardScaler
+-> It's the original step-by-step that deviates.
+
+
+Further inspecting code of step-by-step:
+---------------------------------------
+Tada... I found the difference! It's the score calculation. The step-by-step calculates the silhouette score based on the normalized data, while all other variance calculate the silhouette score based on original data.
+
+Make one more variant: step-by-step with score based on original data:
+
+
+K-means 6: 0.3732994909365581		step-by-step  ALT SCORE
+K-means PCA 6: 0.3834680571101721	step-by-step  ALT SCORE
+Hier. 6: 0.7100243618056425		step-by-step  ALT SCORE
+Hier. PCA 6: 0.7100243618056425		step-by-step  ALT SCORE
+
+Yeah, now it's the same as with a pipeline. Problem solved.
+
+
+
+CONCLUSIONS/LESSONS LEARNED:
+----------------------------
+- can safely use sklearn pipeline
+- but think about how to calculate clustering score!
+- consider looking at the score based on last step. -> ask an expert?
