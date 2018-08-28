@@ -141,7 +141,7 @@ def showheatmap(imgs, heats, cmapname='summer', opacity=0.7, heatdepend_opacity 
 
 def show_large_heatmap(df_imgstats, heatcolname, imgnames, n_rows, n_cols,
                        opacity=0.5, cmapname='RdYlGn', heatdependent_opacity=False, fig_size=(12,10),
-                       annotate_tiles = False, show_extra_info=False, return_heatmap=False):
+                       annotate_tiles = False, show_extra_info=False, return_heatmap=False, subtitle=None):
     """
     Shows the heatmap of multiple images that originate from tiled image set; see also showheatmaps. Note
     that the defaults for the visualization are different from showheatmap.
@@ -193,6 +193,7 @@ def show_large_heatmap(df_imgstats, heatcolname, imgnames, n_rows, n_cols,
     # rescale all heats to normalized range
     allheats = (allheats - np.min(allheats)) / (np.max(allheats) - np.min(allheats))
     tittxt = 'Heats from: ' + heatcolname
+    if (subtitle != None): tittxt += " - " + subtitle
     showheatmap(allsubimgs, allheats, heatdepend_opacity=heatdependent_opacity, opacity=opacity, cmapname=cmapname,
                 title=tittxt, figsize=fig_size, tile_annotations=allannos)
 
