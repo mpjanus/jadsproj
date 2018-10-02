@@ -14,6 +14,7 @@ from matplotlib.colors import ListedColormap
 from matplotlib.offsetbox import (OffsetImage, AnnotationBbox, TextArea)
 
 import pathlib as path
+import os
 
 import warnings
 warnings.filterwarnings('ignore')
@@ -33,30 +34,80 @@ def loadtiff(filename):
         img = np.trunc(rgb2gray(img) * 256)  # 8 bit values
     return img
 
+def savetiff(filename, img):
+    """Saves a tiff file"""
+    skimage.io.imsave(filename, img, plugin='tifffile')
 
 def scanimgdir(folder, ext):
     """
     scans the given folder for image files as specified by ext
     and returns a dataframe with the file names
     """
-    df = pd.DataFrame([['dummy']], columns=['filename'])
-    df = df.drop(df.index[[0]])
+    filelist = getimgfiles(folder, ext)
+    df = pd.DataFrame(filelist, columns=['filename'])
+    return df
+
+def getimgfiles(folder, ext):
+    """
+    scans the given folder for image files as specified by ext
+    and returns a list with the file names
+    """
+    result = []
     pathlist = path.Path(folder)
     for item in pathlist.iterdir():
         fullpath = str(item)
         if (fullpath[-len(ext):] == ext):
-            df.loc[len(df)] = [fullpath]
-    return df
+            result.append(fullpath)
+    return result
+
+def downsample_img(img, factor, imgname=None, print_diagnostics=False):
+    """
+    Downsamples the image with the provided factor
+    """
+    img_down: object = skimage.transform.rescale(img, 1.0 / factor, preserve_range=False)
+
+    # reformat to 8 or 16 bit grayscale (transform.rescale converts to floats)
+    if (img.dtype == 'uint16'):
+        img_down = skimage.img_as_uint(img_down)
+    elif (img.dtype == 'uint8'):
+        img_down = skimage.img_as_ubyte(img_down)
+    else:
+        raise TypeError('Image {} is not 8 or 16 bits grayscale'.format(imgname or ''))
+
+    if (print_diagnostics):
+        print('Original (Max, Min, Mean):', np.max(img), np.min(img), np.mean(img))
+        print('Downsampled (Max, Min, Mean):', np.max(img_down), np.min(img_down), np.mean(img_down))
+
+    return img_down
+
+def downsample_tiffs(sourcefolder, targetfolder, factor, print_diagnostics=False):
+    """
+    take the tiff images from sourcefolder, down samples them by given
+    factor and saves result in targetfolder (with original filename)
+    """
+    imgfiles = scanimgdir(sourcefolder, 'tif')
+    if not os.path.exists(targetfolder):
+        os.makedirs(targetfolder)
+
+    for imgfile in imgfiles['filename']:
+        filename = os.path.basename(imgfile)
+        filename_noext, _ = os.path.splitext(filename)
+        targetname = os.path.join(targetfolder, filename_noext + ".tif")
+
+        img = loadtiff(imgfile)
+        img_down = downsample_img(img, factor, imgname=filename, print_diagnostics = print_diagnostics)
+        savetiff(targetname, img_down)
 
 
 # ----------------------------------------------------------------------------------
 # Image Display :
 # ----------------------------------------------------------------------------------
 
-def showimg(img):
+def showimg(img, fig_size=None):
     """shows the image.  Note that in pycharm, run environment needs to have Display=True """
-    plt.interactive(False)      # required in pycharm
-    plt.imshow(img, cmap='gray')
+    plt.interactive(False)
+    if (fig_size): _ = plt.figure(figsize = fig_size)
+    plt.imshow(img, cmap='gray', )
     plt.show()
 
 
@@ -212,6 +263,73 @@ def show_large_heatmap(df_imgstats, heatcolname, imgnames, n_rows, n_cols,
 
     if return_heatmap:
         return (allsubimgs, allheats)
+
+def unslice(imgs, downscaler=None):
+    # TO DO
+    ny, nx = imgs.shape
+
+    strips=[]
+    for iy in range(ny):
+        strip = np.copy(imgs[ny,0])
+        for ix in range(1,nx):
+            strip = np.concatenate(strip, imgs[ny,ix], axis=1)
+        strips.append(strip)
+    # TO DO
+
+def showheatmap2(imgs, heats, cmapname='summer', opacity=0.7, heatdepend_opacity=True,
+                title=None, figsize=(8, 6), tile_labels=False, tile_annotations=None):
+    """
+    shows a 2d array of images with a heatmap overlay.
+    imgs - 2d array of images
+    heats - 2d array of heats [0-1]
+    cmapname - see https://matplotlib.org/examples/color/colormaps_reference.html
+    opacity - opacity of the heat overlay
+    heatdependend_opacity - if enabled, scales the opacity with the heats
+    title - Caption that is shown above the heatmap
+    figsize - the figure size of the entire heatmap (which is a matplotlib figure)
+    tile_labels - when enabled, plots the tile index at each image tile
+    tile_annotations - a 2d array of strings to plot on each tile
+    """
+    plt.interactive(False)  # required in pycharm
+
+    ny, nx = imgs.shape
+    fig = plt.figure(figsize=figsize)
+    if (title != None): fig.suptitle(title)
+
+    i = 1
+    for iy in range(ny):
+        for ix in range(nx):
+            subfig = fig.add_subplot(ny, nx, i)
+            subfig.axes.get_xaxis().set_ticks([])
+            subfig.axes.get_yaxis().set_ticks([])
+
+            img = imgs[iy, ix]
+            plt.imshow(img, cmap='gray')
+            overlay = np.full(img.shape, heats[iy, ix])
+
+            # color map that - if enabled - is more transparent for low values
+            org_cmap = plt.get_cmap(cmapname)
+            alpha_cmap = org_cmap(np.arange(org_cmap.N))
+            if (heatdepend_opacity):
+                alpha_cmap[:, -1] = np.linspace(0, 1, org_cmap.N)
+            alpha_cmap = ListedColormap(alpha_cmap)
+
+            plt.imshow(overlay, cmap=alpha_cmap, alpha=opacity, vmin=0, vmax=1)
+
+            if (tile_labels):
+                # plot text in black and white with offset to give shadow for improved readability
+                subfig.text(2, 2, "({},{})".format(iy, ix), ha="left", va="top", color="k")
+                subfig.text(1, 1, "({},{})".format(iy, ix), ha="left", va="top", color="w")
+
+            if not tile_annotations is None:
+                b = img.shape[0]
+                r = img.shape[1]
+                subfig.text(b - 1, r - 1, tile_annotations[iy, ix], ha="right", va="bottom", color="k")
+                subfig.text(b - 2, r - 2, tile_annotations[iy, ix], ha="right", va="bottom", color="w")
+
+            i = i + 1
+    plt.show()
+
 
 # ----------------------------------------------------------------------------------
 # Image Slicing And Statistics:

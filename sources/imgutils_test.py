@@ -1,6 +1,7 @@
 import numpy as np
 import pandas as pd
 import imgutils
+import os
 
 # TEST FUNCTIONS:
 
@@ -13,6 +14,13 @@ def test_scanimgdir():
 def test_loadandshowimg():
     img = imgutils.loadtiff('testimage1.tif')
     imgutils.showimg(img)
+
+def test_loadandsaveimg():
+    img = imgutils.loadtiff('testimage1.tif')
+    imgutils.savetiff('temp.tif', img)
+    img2 = imgutils.loadtiff('temp.tif')
+    imgutils.showimg(img2)
+    if os.path.exists('temp.tif'): os.remove('temp.tif')
 
 def test_loadandshowimgs():
     img1 = imgutils.loadtiff('testimage1.tif')
@@ -91,10 +99,10 @@ def test_highlightimgslice(i):
     imgutils.showimg(img)
 
 # EXECUTE TESTS:
-#test_scanimgdir()
+test_scanimgdir()
 #test_heatmap2()
 #test_slicestats()
-
+#test_loadandsaveimg()
 #test_plotwithimg(thumbs=True, interactive=False)
 #test_plotwithimg(thumbs=False, interactive=True)
 #test_plotwithimg(thumbs=True, interactive=True)
@@ -103,7 +111,9 @@ def test_highlightimgslice(i):
 
 #test_largeheatmap()
 
-
-
+# RESCALING IMAGES:
+#sourcedir = '../data/Crystals_Apr_12/Tileset6_subset'
+#targetdir = '../data/Crystals_Apr_12/Tileset6_subset_1K'
+#imgutils.downsample_tiffs(sourcedir, targetdir, 2)
 
 
