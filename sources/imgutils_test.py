@@ -99,8 +99,8 @@ def test_highlightimgslice(i):
     imgutils.showimg(img)
 
 # EXECUTE TESTS:
-test_scanimgdir()
-#test_heatmap2()
+#test_scanimgdir()
+test_heatmap2()
 #test_slicestats()
 #test_loadandsaveimg()
 #test_plotwithimg(thumbs=True, interactive=False)

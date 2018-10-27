@@ -135,7 +135,8 @@ def showimgs(imgs, tile_labels = False, fig_size=(8,8)):
 
 
 def showheatmap(imgs, heats, cmapname='summer', opacity=0.7, heatdepend_opacity = True,
-                title=None, figsize=(8,6), tile_labels=False, tile_annotations = None):
+                title=None, figsize=(8,6), tile_labels=False, tile_annotations = None,
+                no_borders=False, no_whitespace=True):
     """
     shows a 2d array of images with a heatmap overlay.
     imgs - 2d array of images
@@ -151,18 +152,20 @@ def showheatmap(imgs, heats, cmapname='summer', opacity=0.7, heatdepend_opacity 
     plt.interactive(False)      # required in pycharm
 
     ny, nx = imgs.shape
-    fig = plt.figure(figsize = figsize)
+    fig, subfigs = plt.subplots(ny,nx, sharex=False, sharey=False, figsize = figsize)
+
     if (title != None): fig.suptitle(title)    
 
-    i = 1
     for iy in range(ny):
         for ix in range(nx):
-            subfig = fig.add_subplot(ny, nx,i)            
+            subfig = subfigs[iy, ix]
             subfig.axes.get_xaxis().set_ticks([])
-            subfig.axes.get_yaxis().set_ticks([])            
+            subfig.axes.get_yaxis().set_ticks([])
+            if no_borders:
+                subfig.axis('off')
                 
             img = imgs[iy, ix]
-            plt.imshow(img, cmap='gray')
+            subfig.imshow(img, cmap='gray')
             overlay = np.full(img.shape, heats[iy,ix])
 
             # color map that - if enabled - is more transparent for low values
@@ -172,7 +175,7 @@ def showheatmap(imgs, heats, cmapname='summer', opacity=0.7, heatdepend_opacity 
                 alpha_cmap[:, -1] = np.linspace(0, 1, org_cmap.N)
             alpha_cmap = ListedColormap(alpha_cmap)
 
-            plt.imshow(overlay, cmap=alpha_cmap, alpha=opacity, vmin=0, vmax=1)
+            subfig.imshow(overlay, cmap=alpha_cmap, alpha=opacity, vmin=0, vmax=1)
 
             if (tile_labels):
                 # plot text in black and white with offset to give shadow for improved readability
@@ -185,7 +188,13 @@ def showheatmap(imgs, heats, cmapname='summer', opacity=0.7, heatdepend_opacity 
                 subfig.text(b-1, r-1, tile_annotations[iy,ix], ha="right", va="bottom", color="k")
                 subfig.text(b-2, r-2, tile_annotations[iy,ix],  ha="right", va="bottom", color="w")
 
-            i = i + 1
+
+    if no_whitespace:
+        # this is a hack to avoid the white margin as there is a bug in imshow in subplots
+        hackwidth_x = -0.6
+        hackwidth_y = -0.01
+        plt.subplots_adjust(wspace=hackwidth_x, hspace=hackwidth_y)
+
     plt.show()
 
 
@@ -246,7 +255,7 @@ def show_large_heatmap(df_imgstats, heatcolname, imgnames, n_rows, n_cols,
     tittxt = 'Heats from: ' + heatcolname
     if (subtitle != None): tittxt += " - " + subtitle
     showheatmap(allsubimgs, allheats, heatdepend_opacity=heatdependent_opacity, opacity=opacity, cmapname=cmapname,
-                title=tittxt, figsize=fig_size, tile_annotations=allannos)
+                title=tittxt, figsize=fig_size, tile_annotations=allannos, no_borders=True, no_whitespace=True )
 
     # show info if requested
     if show_extra_info:
@@ -275,61 +284,6 @@ def unslice(imgs, downscaler=None):
             strip = np.concatenate(strip, imgs[ny,ix], axis=1)
         strips.append(strip)
     # TO DO
-
-def showheatmap2(imgs, heats, cmapname='summer', opacity=0.7, heatdepend_opacity=True,
-                title=None, figsize=(8, 6), tile_labels=False, tile_annotations=None):
-    """
-    shows a 2d array of images with a heatmap overlay.
-    imgs - 2d array of images
-    heats - 2d array of heats [0-1]
-    cmapname - see https://matplotlib.org/examples/color/colormaps_reference.html
-    opacity - opacity of the heat overlay
-    heatdependend_opacity - if enabled, scales the opacity with the heats
-    title - Caption that is shown above the heatmap
-    figsize - the figure size of the entire heatmap (which is a matplotlib figure)
-    tile_labels - when enabled, plots the tile index at each image tile
-    tile_annotations - a 2d array of strings to plot on each tile
-    """
-    plt.interactive(False)  # required in pycharm
-
-    ny, nx = imgs.shape
-    fig = plt.figure(figsize=figsize)
-    if (title != None): fig.suptitle(title)
-
-    i = 1
-    for iy in range(ny):
-        for ix in range(nx):
-            subfig = fig.add_subplot(ny, nx, i)
-            subfig.axes.get_xaxis().set_ticks([])
-            subfig.axes.get_yaxis().set_ticks([])
-
-            img = imgs[iy, ix]
-            plt.imshow(img, cmap='gray')
-            overlay = np.full(img.shape, heats[iy, ix])
-
-            # color map that - if enabled - is more transparent for low values
-            org_cmap = plt.get_cmap(cmapname)
-            alpha_cmap = org_cmap(np.arange(org_cmap.N))
-            if (heatdepend_opacity):
-                alpha_cmap[:, -1] = np.linspace(0, 1, org_cmap.N)
-            alpha_cmap = ListedColormap(alpha_cmap)
-
-            plt.imshow(overlay, cmap=alpha_cmap, alpha=opacity, vmin=0, vmax=1)
-
-            if (tile_labels):
-                # plot text in black and white with offset to give shadow for improved readability
-                subfig.text(2, 2, "({},{})".format(iy, ix), ha="left", va="top", color="k")
-                subfig.text(1, 1, "({},{})".format(iy, ix), ha="left", va="top", color="w")
-
-            if not tile_annotations is None:
-                b = img.shape[0]
-                r = img.shape[1]
-                subfig.text(b - 1, r - 1, tile_annotations[iy, ix], ha="right", va="bottom", color="k")
-                subfig.text(b - 2, r - 2, tile_annotations[iy, ix], ha="right", va="bottom", color="w")
-
-            i = i + 1
-    plt.show()
-
 
 # ----------------------------------------------------------------------------------
 # Image Slicing And Statistics:
