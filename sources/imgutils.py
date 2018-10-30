@@ -111,32 +111,59 @@ def showimg(img, fig_size=None):
     plt.show()
 
 
-def showimgs(imgs, tile_labels = False, fig_size=(8,8)):
+def _add_tile_img(pltaxis, img, iy, ix, tile_labels=False, grayrange = None):
+    """ this is a helper function for other images"""
+
+    pltaxis.get_xaxis().set_ticks([])
+    pltaxis.get_yaxis().set_ticks([])
+    if (grayrange==None):
+        pltaxis.imshow(img, cmap='gray')
+    else:
+        pltaxis.imshow(img, cmap='gray', vmin=grayrange[0], vmax=grayrange[1])
+
+    if (tile_labels):
+        # plot text in black and white with offset to give shadow for improved readability
+        pltaxis.text(2, 2, "({},{})".format(iy, ix), ha="left", va="top", color="k")
+        pltaxis.text(1, 1, "({},{})".format(iy, ix), ha="left", va="top", color="w")
+
+def showimgs(imgs, tile_labels = False, fig_size=(8,8), relspacing=(0,0)):
     """shows a 2d array of images, optionally with tile annotation """
     plt.interactive(False)      # required in pycharm
 
-    fig = plt.figure(figsize = fig_size)
     ny, nx = imgs.shape
+    # adjust fig size (height is leading) to avoid white space between images
+    figsize2 = (nx * fig_size[1]/ny, fig_size[1]+0.2)  # height is leading
+    fig = plt.figure(figsize = figsize2)
+
+    graymin, graymax = getimgs_minmax(imgs)
     i = 1
     for iy in range(ny):
         for ix in range(nx):
             subfig = fig.add_subplot(ny, nx, i)
-            subfig.axes.get_xaxis().set_ticks([])
-            subfig.axes.get_yaxis().set_ticks([])
-            plt.imshow(imgs[iy, ix], cmap='gray')
-
-            if (tile_labels):
-                # plot text in black and white with offset to give shadow for improved readability
-                subfig.text(2, 2, "({},{})".format(iy, ix), ha="left", va="top", color="k")
-                subfig.text(1,1, "({},{})".format(iy,ix),  ha="left", va="top", color="w")
-
+            _add_tile_img(subfig, imgs[iy, ix], iy, ix, tile_labels, grayrange=(graymin,graymax))
             i = i + 1
+
+    plt.subplots_adjust(wspace=relspacing[0], hspace=relspacing[1])
     plt.show()
 
+def getimgs_minmax(imgs):
+    graymin = min([np.min(img) for imgline in imgs for img in imgline])
+    graymax = max([np.max(img) for imgline in imgs for img in imgline])
+    return (graymin,graymax)
 
-def showheatmap(imgs, heats, cmapname='summer', opacity=0.7, heatdepend_opacity = True,
+def showimgset(imglist, tiles_y, tiles_x, tile_labels = False, fig_size=(12,10), relspacing=(0,0)):
+    """shows the images in the supplied list as an array / tile set, optionally with tile annotation """
+    imgs = np.empty((tiles_y, tiles_x), dtype=object)
+    i = 0
+    for iy in range(tiles_y):
+        for ix in range(tiles_x):
+            imgs[iy,ix] = loadtiff(imglist[i])
+            i = i+1
+    showimgs(imgs, tile_labels, fig_size, relspacing=relspacing)
+
+def showheatmap(imgs, heats, cmapname='summer', opacity=0.5, heatdepend_opacity = True,
                 title=None, figsize=(8,6), tile_labels=False, tile_annotations = None,
-                no_borders=False, no_whitespace=True):
+                no_borders=False,  relspacing=(0,0)):
     """
     shows a 2d array of images with a heatmap overlay.
     imgs - 2d array of images
@@ -152,7 +179,11 @@ def showheatmap(imgs, heats, cmapname='summer', opacity=0.7, heatdepend_opacity 
     plt.interactive(False)      # required in pycharm
 
     ny, nx = imgs.shape
-    fig, subfigs = plt.subplots(ny,nx, sharex=False, sharey=False, figsize = figsize)
+
+    # adjust fig size (height is leading) to avoid white space between images
+    figsize2 = (nx * figsize[1]/ny, figsize[1]+0.2)  # height is leading
+    fig, subfigs = plt.subplots(ny,nx, sharex=False, sharey=False, figsize = figsize2)
+    graymin, graymax = getimgs_minmax(imgs)
 
     if (title != None): fig.suptitle(title)    
 
@@ -165,7 +196,7 @@ def showheatmap(imgs, heats, cmapname='summer', opacity=0.7, heatdepend_opacity 
                 subfig.axis('off')
                 
             img = imgs[iy, ix]
-            subfig.imshow(img, cmap='gray')
+            subfig.imshow(img, cmap='gray', vmin=graymin, vmax=graymax)
             overlay = np.full(img.shape, heats[iy,ix])
 
             # color map that - if enabled - is more transparent for low values
@@ -189,19 +220,16 @@ def showheatmap(imgs, heats, cmapname='summer', opacity=0.7, heatdepend_opacity 
                 subfig.text(b-2, r-2, tile_annotations[iy,ix],  ha="right", va="bottom", color="w")
 
 
-    if no_whitespace:
-        # this is a hack to avoid the white margin as there is a bug in imshow in subplots
-        hackwidth_x = -0.6
-        hackwidth_y = -0.01
-        plt.subplots_adjust(wspace=hackwidth_x, hspace=hackwidth_y)
-
+    # this is sort of a hack to avoid the white margin as there is a bug in imshow in subplots
+    plt.subplots_adjust(wspace=relspacing[0], hspace=relspacing[1])
     plt.show()
 
 
 
 def show_large_heatmap(df_imgstats, heatcolname, imgnames, n_rows, n_cols,
                        opacity=0.5, cmapname='RdYlGn', heatdependent_opacity=False, fig_size=(12,10),
-                       annotate_tiles = False, show_extra_info=False, return_heatmap=False, subtitle=None):
+                       annotate_tiles = False, show_extra_info=False, return_heatmap=False, subtitle=None,
+                       no_borders=True, relspacing=(0,0)):
     """
     Shows the heatmap of multiple images that originate from tiled image set; see also showheatmaps. Note
     that the defaults for the visualization are different from showheatmap.
@@ -255,7 +283,7 @@ def show_large_heatmap(df_imgstats, heatcolname, imgnames, n_rows, n_cols,
     tittxt = 'Heats from: ' + heatcolname
     if (subtitle != None): tittxt += " - " + subtitle
     showheatmap(allsubimgs, allheats, heatdepend_opacity=heatdependent_opacity, opacity=opacity, cmapname=cmapname,
-                title=tittxt, figsize=fig_size, tile_annotations=allannos, no_borders=True, no_whitespace=True )
+                title=tittxt, figsize=fig_size, tile_annotations=allannos, no_borders=no_borders, relspacing=relspacing )
 
     # show info if requested
     if show_extra_info:

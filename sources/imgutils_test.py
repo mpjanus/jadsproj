@@ -100,9 +100,10 @@ def test_highlightimgslice(i):
 
 # EXECUTE TESTS:
 #test_scanimgdir()
-test_heatmap2()
+#test_heatmap2()
 #test_slicestats()
 #test_loadandsaveimg()
+test_loadandshowimgs()
 #test_plotwithimg(thumbs=True, interactive=False)
 #test_plotwithimg(thumbs=False, interactive=True)
 #test_plotwithimg(thumbs=True, interactive=True)
