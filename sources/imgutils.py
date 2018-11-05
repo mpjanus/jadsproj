@@ -38,6 +38,10 @@ def savetiff(filename, img):
     """Saves a tiff file"""
     skimage.io.imsave(filename, img, plugin='tifffile')
 
+def imgsave(filename, img):
+    """Saves a tiff file"""
+    skimage.io.imsave(filename, img)
+
 def scanimgdir(folder, ext):
     """
     scans the given folder for image files as specified by ext
@@ -103,11 +107,13 @@ def downsample_tiffs(sourcefolder, targetfolder, factor, print_diagnostics=False
 # Image Display :
 # ----------------------------------------------------------------------------------
 
-def showimg(img, fig_size=None):
+def showimg(img, fig_size=None, show_axis=False):
     """shows the image.  Note that in pycharm, run environment needs to have Display=True """
     plt.interactive(False)
     if (fig_size): _ = plt.figure(figsize = fig_size)
     plt.imshow(img, cmap='gray', )
+    if not show_axis:
+        plt.axis('off')
     plt.show()
 
 
@@ -227,9 +233,9 @@ def showheatmap(imgs, heats, cmapname='summer', opacity=0.5, heatdepend_opacity 
 
 
 def show_large_heatmap(df_imgstats, heatcolname, imgnames, n_rows, n_cols,
-                       opacity=0.5, cmapname='RdYlGn', heatdependent_opacity=False, fig_size=(12,10),
+                       opacity=0.3, cmapname='RdYlGn', heatdependent_opacity=False, fig_size=(12,10),
                        annotate_tiles = False, show_extra_info=False, return_heatmap=False, subtitle=None,
-                       no_borders=True, relspacing=(0,0)):
+                       no_borders=False, relspacing=(0,0)):
     """
     Shows the heatmap of multiple images that originate from tiled image set; see also showheatmaps. Note
     that the defaults for the visualization are different from showheatmap.
